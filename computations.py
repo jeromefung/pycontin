@@ -178,7 +178,7 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
     intermediate matrices: DZH1_invW, S, gamma, xscale
     '''
     # rescale x, A, R, and D
-    xsc, Asc, Rsc = set_scale(A, R)
+    xsc, alpha_sc, Asc, Rsc = set_scale(A, R)
     Dsc = np.dot(D, np.diag(xsc))
 
     # reduce dimensionality of A (Eqn. A.1)
@@ -231,9 +231,10 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
     chisq_scaled = chisq / np.sqrt(len(y) - n_dof)
 
     # put error bars on x
-    # if no constraints binding: calc covariance matrix
+    # if no constraints binding: calc covariance matrix 
     if len(binding) == 0: # no binding constraints
         Gjj = svals / (svals**2 + alpha**2)
+        # eqn. A.34
         covar_x = np.dot(ZH1_invW,  
                          np.dot(np.diag(Gjj**2), ZH1_invW.transpose()))
     else:
@@ -241,7 +242,7 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
         big_E = big_D[binding] 
         little_e = little_d[binding]
         K2 = calc_K2(big_E)
-        # resolve problem with K2
+        # re-solve problem with K2
         newH1_inv, newZ = sv_decompose_regularizer(np.dot(Rsc, K2))
         newZH1_inv = np.dot(newZ, newH1_inv)
         K2ZH1_inv = np.dot(K2, newZH1_inv)
@@ -253,6 +254,25 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
                          np.dot(np.diag(new_Gjj**2), K2ZH1_invW.transpose()))
 
     err_x = xsc * np.sqrt(np.diag(covar_x))
+
+    infodict = {'xsc' : xsc,
+                'binding_constraints' : binding,
+                'residuals' : residuals,
+                'chisq' : chisq,
+                'Valpha' : V,
+                'n_dof' : n_dof,
+                'scaled_chisq' : chisq_scaled,
+                'alpha_sc' : alpha_sc,
+                'singular_values': svals} 
+    
+    if intermediate_results:
+        int_results = {'gamma' : gamma,
+                       'DZH1_invW' : DZH1_invW,
+                       'ZH1_invW' : ZH1_invW,
+                       'C' : C}
+        return x, err_x, infodict, int_results
+    else:
+        return x, err_x, infodict
     
 
 def calc_K2(E):
@@ -287,4 +307,10 @@ def set_scale(A, R):
     # scale nonregularized variables by L1 norm of vectors of A
     x_scale[nonregularized_vars] = 1./A_col_norms[nonregularized_vars]
 
-    return x_scale, np.dot(A, np.diag(x_scale)), np.dot(R, np.diag(x_scale))
+    R_scaled = np.dot(R, np.diag(x_scale))
+    # calculate avg element size
+    alpha_scale = np.abs(R_scaled).mean()
+    R_scaled = R_scaled / alpha_scale
+    
+    return x_scale, alpha_scale, np.dot(A, np.diag(x_scale)), R_scaled
+
