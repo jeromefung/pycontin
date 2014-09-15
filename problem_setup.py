@@ -24,21 +24,69 @@ Provencher Comp. Phys. Comm, 1982
 '''
 
 import numpy as np
+from numpy import log, exp
 
-def setup_regularizor():
+def setup_regularizer(grid, n_x, skip_rows = 1):
     '''
+    Define regularizing matrix R such that 
+    ||Rx||^2 = \int_a^b s''(\lambda)^2 d\lambda.
+
+    Skip skip_rows rows at beginning and end to avoid biasing solution
+    by assuming 0 outside range; recommend skip_rows = 1.
     '''
-    pass
+    # Use generalized extended trapezoidal rule to compute integral:
+    # first row: (lambda_1 - lambda_0) * s''(lambda_0)
+    # next row: (lambda_2 - lambda_0) * s''(lambda_1)
+    # 3rd row: (lambda_3 - lambda_1) * s''(lambda_2)
+    # etc...
+    # last row: (lambda_max - lambda_(max-1) * s''(lambda_max)
+    # There's an overall factor of 1/2 from trapezoidal rule
+    # cancelling a factor of 2 in the finite difference 2nd derivative.
+
+    # Use generalized finite differences to estimate 2nd derivative.
+    # s''(lambda_1) = ((lambda_2 - lambda_1) s(0) 
+    #                   - (lambda_2 - lambda_0) s(1)
+    #                   - (lambda_1 - lambda_0) s(2)) / 
+    #      ((lambda_1 - lambda_0) (lambda_2 - lambda_1) (lambda_2 - lambda_0)))
+
+    n_grid = len(grid)
+    regularizer = np.zeros((n_grid, n_x))
+    # first row: assume s''(lambda_-1) = 0 
+    # also assume lambda_0 - lambda_-1 = lambda_1 - lambda_0
+    regularizer[0,:2] = np.array([-1. / (grid[1] - grid[0]),
+                                   1. / (2. * (grid[1] - grid[0]))])
+    # equivalent assumptions for last row
+    regularizer[-1, -2:] = np.array([1. / (grid[-1] - grid[-2]),
+                                     -2. / (grid[-1] - grid[-2])])
+
+    # fill in remainder
+    for i in np.arange(1, n_grid - 1):
+        regularizer[i, 
+                    (i - 1):(i + 2)] = np.array([1. / (grid[i] - grid[i-1]),
+                                                 -(grid[i+1] - 
+                                                   grid[i-1]) / ((grid[i] - 
+                                                                  grid[i-1]) * 
+                                                                 (grid[i+1] - 
+                                                                  grid[i])),
+                                                 1. / (grid[i+1] - grid[i])])
+    if skip_rows == 0:
+        return regularizer
+    else:
+        regularizer[:skip_rows] = np.zeros((skip_rows, n_x))
+        regularizer[-skip_rows:] = np.zeros((skip_rows, n_x))
+        return regularizer
 
 
 def setup_grid(grid_min, grid_max, n_grid, type = 'log'):
     '''
+    Set up grid of points over which solution is computed.
     '''
     if type == 'log':
-        grid = np.logspace(grid_min, grid_max, n_grid)
+        grid = np.logspace(log(grid_min), log(grid_max), n_grid, 
+                           base = exp(1))
         dh = (np.log(grid_max) - np.log(grid_min)) / (n_grid - 1)
         dhdx = 1. / grid
-    elif type == 'lin':
+    elif type == 'linear':
         grid = np.linspace(grid_min, grid_max, n_grid)
         dh = grid[1] - grid[0]
         dhdx = np.ones(n_grid)
@@ -71,7 +119,7 @@ def setup_quadrature(grid_x, dh, dhdx, type = 'simpson'):
     else:
         raise NotImplementedError
     
-    return dh * weights / dhdx # correct with derivative
+    return dh * weights / dhdx # approximate dx ~ dh / (dh/dx)
 
 
 def setup_weights():

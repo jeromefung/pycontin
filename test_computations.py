@@ -18,8 +18,10 @@ Test contin math.
 '''
 
 import numpy as np
+from numpy.linalg import norm
 from numpy.testing import assert_allclose
 from computations import ldp_lawson_hanson, reduce_A_qr
+from problem_setup import setup_grid, setup_quadrature, setup_regularizer
 
 def test_ldp():
     # see eqn. 23.54 on p. 171
@@ -44,4 +46,51 @@ def test_eqn_A_1():
                                  [0., -5.]]))
     assert_allclose(eta, np.array([-5., -3.]))
 
+def test_quadrature():
+    # 4 cases: linear spacing, log spacing, simpson, trapezoidal
+    grid_min = 1.
+    grid_max = 2.
+    n_pts = 101
+    
+    linear_grid, lin_dh, lin_dhdx = setup_grid(grid_min, grid_max, n_pts, 
+                                               type = 'linear')
+    quad_coeffs_linear_trap = setup_quadrature(linear_grid, lin_dh, lin_dhdx,
+                                               type = 'trapezoidal')
+    quad_coeffs_linear_simp = setup_quadrature(linear_grid, lin_dh, lin_dhdx,
+                                               type = 'simpson')
+    
+    log_grid, log_dh, log_dhdx = setup_grid(grid_min, grid_max, n_pts,
+                                            type = 'log')
+    quad_coeffs_log_trap = setup_quadrature(log_grid, log_dh, log_dhdx,
+                                            type = 'trapezoidal')
+    quad_coeffs_log_simp = setup_quadrature(log_grid,log_dh, log_dhdx,
+                                            type = 'simpson')
 
+    # tolerance where it is b/c of inherent approximations in 
+    # setting up quadrature grid w/non-uniform spacing, becomes exact as 
+    # n_pts -> infinity.
+    assert_allclose(np.array([(quad_coeffs_linear_trap * linear_grid).sum(),
+                              (quad_coeffs_log_trap * log_grid).sum(),
+                              (quad_coeffs_linear_simp * linear_grid**2).sum(),
+                              (quad_coeffs_log_simp * log_grid**2).sum()]),
+                    np.array([1.5, 1.5, 7./3., 7./3.]), rtol = 2e-5)
+
+
+def test_regularizer():
+    '''
+    Check the integral of the second derivative of a function.
+    '''
+    grid_min = 1.
+    grid_max = 1.1
+    n_pts = 100
+
+    grid, dh, dhdx = setup_grid(grid_min, grid_max, n_pts, type = 'log')
+    s = grid**3
+
+    regularizer = setup_regularizer(grid, n_pts) 
+    Rs = np.dot(regularizer, s)
+    regularized_integral = Rs.sum()
+    gold = (3. * (grid[-1]**2 - grid[1]**2))
+
+    assert_allclose(regularized_integral, gold, rtol = 1e-3)
+    
