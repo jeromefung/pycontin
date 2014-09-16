@@ -26,6 +26,7 @@ Provencher Comp. Phys. Comm, 1982
 
 import numpy as np
 import numpy.linalg
+import scipy.linalg
 
 from scipy.optimize import nnls
 
@@ -179,7 +180,7 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
     '''
     # rescale x, A, R, and D
     xsc, alpha_sc, Asc, Rsc = set_scale(A, R)
-    Dsc = np.dot(D, np.diag(xsc))
+    Dsc = np.dot(big_D, np.diag(xsc))
 
     # reduce dimensionality of A (Eqn. A.1)
     C, eta = reduce_A_qr(Asc, y)
@@ -222,7 +223,7 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
     chisq = np.linalg.norm(residuals)**2
 
     # calculated V (regularized chisq)
-    V = chisq + alpha**2 * np.linalg.norm(np.dot(Rsc, x))**2
+    V = chisq + alpha**2 * alpha_sc * np.linalg.norm(np.dot(Rsc, x))**2
 
     # calculate N_dof, eqns. 3.15 and 3.16
     n_dof = np.sum(svals**2 / (svals**2 + alpha**2))
@@ -238,6 +239,7 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
         covar_x = np.dot(ZH1_invW,  
                          np.dot(np.diag(Gjj**2), ZH1_invW.transpose()))
     else:
+        
         # extract rows of D and d corresponding to binding constraints
         big_E = big_D[binding] 
         little_e = little_d[binding]
@@ -253,7 +255,9 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
         covar_x = np.dot(K2ZH1_invW,
                          np.dot(np.diag(new_Gjj**2), K2ZH1_invW.transpose()))
 
-    err_x = xsc * np.sqrt(np.diag(covar_x))
+    err_x = np.sqrt(np.diag(covar_x)) * xsc
+    
+    #err_x = np.zeros(len(x))
 
     infodict = {'xsc' : xsc,
                 'binding_constraints' : binding,
@@ -270,9 +274,9 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
                        'DZH1_invW' : DZH1_invW,
                        'ZH1_invW' : ZH1_invW,
                        'C' : C}
-        return x, err_x, infodict, int_results
+        return x_unsc, err_x, infodict, int_results
     else:
-        return x, err_x, infodict
+        return x_unsc, err_x, infodict
     
 
 def calc_K2(E):
@@ -282,7 +286,7 @@ def calc_K2(E):
     # E is Neq x Nx, Neq < Nx. Transpose it and QR
     n_eq, n_x = E.shape
     n_xe = n_x - n_eq
-    K, r = np.linalg.qr(E)
+    K, r = scipy.linalg.qr(E.transpose())
     return K[:, -n_xe:]
 
 def set_scale(A, R):
