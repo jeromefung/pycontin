@@ -64,14 +64,14 @@ R = problem_setup.setup_regularizer(grid_r, n_grid)
 # 1e-12 is already perturbing the solution.
 x, err_x, infodict, int_results = computations.solve_fixed_alpha(matrix_A,
                                                                  y_problem,
-                                                                 1e-19, R,
+                                                                 1.1e-21, R,
                                                                  big_D,
                                                                  little_d,
                                                                  True)
                                                                  
 x0, err_x0, infodict0, int_results0 = computations.solve_fixed_alpha(matrix_A,
                                                                      y_problem,
-                                                                     1e-20, R,
+                                                                     1e-22, R,
                                                                      big_D,
                                                                      little_d,
                                                                      True)

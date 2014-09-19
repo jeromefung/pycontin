@@ -122,7 +122,16 @@ def setup_quadrature(grid_x, dh, dhdx, type = 'simpson'):
     return dh * weights / dhdx # approximate dx ~ dh / (dh/dx)
 
 
-def setup_weights():
-    pass
+def setup_weights(y):
+    '''
+    See Eq. 2 on p. 4.1.2.8-1 of CONTIN manual. 
+    Return 1/sigma_k = sqrt(W_k), which multiplies each element of y_k
+    and each row of coefficient matrix A_kj.
+    '''
+    return 2. * y / np.sqrt(y**2 + 1)
 
 
+def nonneg_sqrt(arr):
+    nnsqrt = np.sqrt(np.abs(arr))
+    nnsqrt[arr<0] *= -1
+    return nnsqrt
