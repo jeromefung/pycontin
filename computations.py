@@ -277,8 +277,13 @@ def setup_and_solve_ldp(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d):
     # Eqn. A.28, RHS
     A28RHS = little_d - np.dot(A28LHS, gamma_tilde)
 
+    #print A28LHS
+    #print A28RHS
     xi, binding, success = ldp_lawson_hanson(A28LHS, A28RHS)
-
+    #print binding
+    #print xi
+    #print np.dot(A28LHS, xi)
+    #print
     # Eqn. A.29
     return np.dot(np.dot(ZH1_invW, big_S_tilde_inv), xi + gamma_tilde), \
         binding, success

@@ -20,8 +20,9 @@ Test contin math.
 import numpy as np
 from numpy.linalg import norm
 from numpy.testing import assert_allclose
-from computations import ldp_lawson_hanson, reduce_A_qr
+from computations import ldp_lawson_hanson, reduce_A_qr, solve_fixed_alpha
 from problem_setup import setup_grid, setup_quadrature, setup_regularizer
+import scipy.optimize
 
 def test_ldp():
     # see eqn. 23.54 on p. 171
@@ -94,3 +95,29 @@ def test_regularizer():
 
     assert_allclose(regularized_integral, gold, rtol = 1e-3)
     
+ 
+def test_lh_lsi_example():
+    '''
+    Test regularized minimization for alpha = 0.
+    minimize |Ex - f| subject to Gx >= h.
+    See Problem LSI example on p. 169 - 173 of Lawson/Hanson (sec. 23.7) 
+    '''
+    E = np.array([[0.25, 1.],
+                  [0.5, 1.],
+                  [0.5, 1.],
+                  [0.8, 1.]])
+    f = np.array([0.5, 0.6, 0.7, 1.2])
+    G = np.array([[1., 0.],
+                  [0., 1.],
+                  [-1., -1.]])
+    h = np.array([0., 0., -1.])
+
+    identity = np.diag(np.ones(2))
+    x, err, infodict, int_res = solve_fixed_alpha(E, f, 1e-30,
+                                                  identity, #np.ones(4).reshape((2,2)), 
+                                                  G, h, True)
+    #print x
+    #print infodict
+    #print int_res
+    gold_x = np.array([0.621, 0.379]) # see L/H p. 172
+    assert_allclose(x, gold_x, rtol = 9e-4)

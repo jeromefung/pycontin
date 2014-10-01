@@ -136,8 +136,8 @@ def test_noisy_data():
     best_soln, all_solns = computations.solution_series(matrix_A, y_problem,
                                                         R, big_D, little_d,
                                                         converge_radius=0.05)
-
-    #print best_soln
+    print grid_r
+    print best_soln
 
     weights = problem_setup.setup_weights(y_problem - 
                                           best_soln[2]['residuals'])
