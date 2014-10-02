@@ -113,11 +113,16 @@ def test_lh_lsi_example():
     h = np.array([0., 0., -1.])
 
     identity = np.diag(np.ones(2))
-    x, err, infodict, int_res = solve_fixed_alpha(E, f, 1e-30,
-                                                  identity, #np.ones(4).reshape((2,2)), 
+    x, err, infodict, int_res = solve_fixed_alpha(E, f, 1e-10,
+                                                  identity, 
                                                   G, h, True)
     #print x
     #print infodict
     #print int_res
+
+    x2, err2, infodict2 = solve_fixed_alpha(E, f, 1e-10, 
+                                            np.ones(4).reshape((2,2,)),
+                                            G, h, False)
     gold_x = np.array([0.621, 0.379]) # see L/H p. 172
     assert_allclose(x, gold_x, rtol = 9e-4)
+    assert_allclose(x2, gold_x, rtol = 9e-4)

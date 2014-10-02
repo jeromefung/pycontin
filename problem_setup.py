@@ -24,6 +24,7 @@ Provencher Comp. Phys. Comm, 1982
 '''
 
 import numpy as np
+import numpy.linalg as linalg
 from numpy import log, exp
 
 def setup_regularizer(grid, n_x, skip_rows = 1):
@@ -75,6 +76,38 @@ def setup_regularizer(grid, n_x, skip_rows = 1):
         regularizer[:skip_rows] = np.zeros((skip_rows, n_x))
         regularizer[-skip_rows:] = np.zeros((skip_rows, n_x))
         return regularizer
+
+
+def dumb_regularizer(grid, n_x, skip_rows = 2):
+    '''
+    Testing purposes. My better regularizer causing problems?
+    See Eqn. 3.12 of 1982 paper.
+    '''
+    n_grid = len(grid)
+    n_unreg = n_x - n_grid
+    regularizer = np.zeros((n_grid + 2, n_x))
+
+    # first 2 rows
+    regularizer[0, 0] = 1.
+    regularizer[1, :2] = np.array([-2., 1.])
+    # last 2 rows
+    regularizer[-2, -(2 + n_unreg):-n_unreg] = np.array([1., -2.])
+    regularizer[-1, -(1 + n_unreg)] = 1.
+
+    # the rest
+    for i in np.arange(2, n_grid):
+        regularizer[i, (i-2):(i+1)] = np.array([1., -2., 1.])
+
+    # calculate regularizer column norms for scaling
+    R_col_norms = np.array([linalg.norm(regularizer[:,i], ord = 1)
+                            for i in np.arange(n_x)])
+
+    if skip_rows == 0:
+        return regularizer #, R_col_norms
+    else:
+        regularizer[:skip_rows] = np.zeros((skip_rows, n_x))
+        regularizer[-skip_rows:] = np.zeros((skip_rows, n_x))
+        return regularizer #, R_col_norms
 
 
 def setup_grid(grid_min, grid_max, n_grid, type = 'log'):

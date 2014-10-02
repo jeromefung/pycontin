@@ -14,6 +14,8 @@ q = 4. * pi * n_med * sin(theta / 2.) / lambda_0 * 1e7 # convert to cm^-1
 prop_const = 1.37e-4
 
 def F_k(mw, tau):
+    # so i see RUSER(23) = 0. Is this right??
+    # it is, but userk has leading factor of mw
     return mw * exp(-prop_const * q**2 * tau / np.sqrt(mw))
 
 test_data = np.loadtxt('contin_test_data_set_1.txt')
@@ -43,17 +45,18 @@ matrix_A[:, :-1] = np.dot(Fk, np.diag(quadrature_weights))
 matrix_A[:, -1] = np.ones(len(tbase))
 
 # nonnegativity constraints on solution and on dust term
-big_D = np.diag(np.ones(n_grid + 1))
+big_D = np.identity(n_grid + 1)
 little_d = np.zeros(n_grid + 1)
 
 # regularizer, extra column of zeros added
-R = problem_setup.setup_regularizer(grid_mw, n_grid + 1)
+#R = problem_setup.setup_regularizer(grid_mw, n_grid + 1)
+R = problem_setup.dumb_regularizer(grid_mw, n_grid + 1, 0)
 
 #print R
 
 # preliminary unweighted analysis
 best_uw, solns_uw = computations.solution_series(matrix_A, y, R, big_D,
-                                                 little_d, alpha0=5.91e-20)
+                                                 little_d, alpha0=5.91e-10)
 
 Ax = np.dot(matrix_A, solns_uw[0][0])
 
@@ -82,7 +85,7 @@ test_x_2[21] = 2.055e-12
 test_x_2[-1] = 8.229e-2
 
 # is Ax_test normalized??
-print quadrature_weights
-print quadrature_weights.sum()
-print 'integral of test soln:', (quadrature_weights * test_x[:-1]).sum()
-print 'integral of test soln2:', (quadrature_weights * test_x_2[:-1]).sum()
+#print quadrature_weights
+#print quadrature_weights.sum()
+#print 'integral of test soln:', (quadrature_weights * test_x[:-1]).sum()
+#print 'integral of test soln2:', (quadrature_weights * test_x_2[:-1]).sum()

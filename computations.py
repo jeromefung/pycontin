@@ -380,10 +380,10 @@ def set_scale(A, R):
     x_scale = np.zeros(n_x)
     # scale to normalize L1 norm of column vectors of R
     x_scale[regularized_vars] = 1./R_col_norms[regularized_vars]
-    #import pdb; pdb.set_trace()
+    #print x_scale
     # calculate factor to scale by avg L1 norm of col vectors of A
     factor = (A_col_norms[regularized_vars] * x_scale[regularized_vars]).mean()
-    #pdb.set_trace()
+    #print factor
     # then scale by average L1 norm of column vectors of A
     x_scale[regularized_vars] = x_scale[regularized_vars] / factor
    
