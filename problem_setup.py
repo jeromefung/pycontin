@@ -27,6 +27,33 @@ import numpy as np
 import numpy.linalg as linalg
 from numpy import log, exp
 
+def setup_coefficient_matrix(grid, tbase, kernel_func, kernel_kwargs, 
+                             quadrature_weights, dust_term = True):
+    '''
+    
+    '''
+    n_grid = len(grid)
+    n_ts = len(tbase)
+    
+    # kernel matrix
+    Fk = np.zeros((n_ts, n_grid))
+    for i in np.arange(n_ts):
+        Fk[i] = kernel_func(grid, tbase[i], **kernel_kwargs)
+
+    if dust_term:
+        A = np.zeros((n_ts, n_grid + 1))
+        A[:, :-1] = np.dot(Fk, np.diag(quadrature_weights))
+        A[:, -1] = np.ones(n_ts)
+    else:
+        A = np.dot(Fk, np.diag(quadrature_weights))
+
+    return A
+
+
+def setup_nonneg(n_x):
+    return np.identity(n_x), np.zeros(n_x)
+
+
 def setup_regularizer(grid, n_x, skip_rows = 1):
     '''
     Define regularizing matrix R such that 
