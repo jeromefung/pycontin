@@ -209,12 +209,16 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
     # unscale the solution 
     x_unsc = x * xsc
 
+    n_bind = len(binding)
     residuals, chisq, V, n_dof, reduced_chisq = \
-        solution_statistics(Asc, y, alpha, Rsc * alpha_sc, svals, x)
+        solution_statistics(Asc, y, alpha, Rsc * alpha_sc / xsc, svals, x, n_bind)
+    # TODO: something wrong with the calculation of V(alpha), not sure
+    # exactly what
+
 
     # put error bars on x
     # if no constraints binding: calc covariance matrix 
-    if len(binding) == 0: # no binding constraints
+    if n_bind == 0: # no binding constraints
         Gjj = svals / (svals**2 + alpha**2)
         # eqn. A.34
         covar_x = np.dot(ZH1_invW,  
@@ -289,7 +293,7 @@ def setup_and_solve_ldp(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d):
         binding, success
 
 
-def solution_statistics(Asc, y, alpha, Rsc_alphasc, svals, x):
+def solution_statistics(Asc, y, alpha, Rsc_alphasc, svals, x, n_bind):
     # calculate unscaled residuals
     residuals = y - np.dot(Asc, x)
     chisq = np.linalg.norm(residuals)**2
@@ -298,10 +302,16 @@ def solution_statistics(Asc, y, alpha, Rsc_alphasc, svals, x):
     #import pdb; pdb.set_trace()
     V = chisq + alpha**2 * np.linalg.norm(np.dot(Rsc_alphasc, x))**2
     # calculate N_dof, eqns. 3.15 and 3.16
-    n_dof = np.sum(svals**2 / (svals**2 + alpha**2))
+    # sum n_x - n_eq singular values, where n_eq includes binding 
+    # inequality constraints that are effectively equality constraints
+    n_xe = len(x) - n_bind
+    n_dof = np.sum(svals[:n_xe]**2 / (svals[:n_xe]**2 + alpha**2))
     # scaled chi-squared (sigma-hat, eqn. 3.22)
     reduced_chisq = chisq / (len(y) - n_dof)
 
+    print 'chisq: ', chisq
+    print 'Valpha', V
+    print 'term', alpha**2 + np.linalg.norm(np.dot(Rsc_alphasc, x))**2
     return residuals, chisq, V, n_dof, reduced_chisq
 
 
@@ -314,12 +324,13 @@ def re_solve_fixed_alpha(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d,
     # unscale the solution 
     x_unsc = x * xsc
 
+    n_bind = len(binding)
     residuals, chisq, V, n_dof, reduced_chisq = \
-        solution_statistics(Asc, y, alpha, Rsc * alpha_sc, svals, x)
+        solution_statistics(Asc, y, alpha, Rsc * alpha_sc, svals, x, n_bind)
 
     # put error bars on x
     # if no constraints binding: calc covariance matrix 
-    if len(binding) == 0: # no binding constraints
+    if n_bind == 0: # no binding constraints
         Gjj = svals / (svals**2 + alpha**2)
         # eqn. A.34
         covar_x = np.dot(ZH1_invW,  

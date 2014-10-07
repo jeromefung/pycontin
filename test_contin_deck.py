@@ -46,7 +46,6 @@ class TestClass():
         tbase = test_data[:,0]
         self.y = problem_setup.nonneg_sqrt(test_data[:,1])
 
-       
         # Solution setup
         self.n_grid = 31
         gmnmx = np.array([5e2, 5e6]) # bounds of grid
@@ -62,7 +61,7 @@ class TestClass():
         self.big_D, self.little_d = problem_setup.setup_nonneg(self.n_grid + 1)
         self.R = problem_setup.dumb_regularizer(grid_mw, self.n_grid + 1, 0)
 
-        # Load matrix stats
+        # Load matrix stats: table of grid points in CONTIN test output
         self.matrix_stats = np.loadtxt('contin_data_set_1_matrix_stats.txt')
     
     def tearDown(self):
@@ -79,9 +78,37 @@ class TestClass():
         assert_allclose(matrix_A_minima, self.matrix_stats[:,0], rtol = 5e-5)
         assert_allclose(matrix_A_maxima, self.matrix_stats[:,1], rtol = 5e-5)
 
-    def test_solution(self):
-        x, err_x, infodict = solve_fixed_alpha(self.A, self.y, 1e-10, 
+    def test_lowreg_solution(self):
+        x, err_x, infodict = solve_fixed_alpha(self.A, self.y, 5.91e-10, 
                                                self.R, self.big_D, 
                                                self.little_d, False)
+        # check scalings on x and alpha
         assert_allclose(infodict['xsc'], self.matrix_stats[:,2], rtol = 5e-4)
         assert_allclose(infodict['alpha_sc'], 1./9.302e13, rtol = 1e-4)
+
+        # check solution 
+        gold_x = np.concatenate((np.zeros(19),
+                                 np.array([4.263e-11, 1.006e-11]),
+                                 np.zeros(10),
+                                 np.array([8.5963e-2])))
+        gold_err = np.concatenate((np.zeros(19),
+                                   np.array([3e-12, 3.2e-12]),
+                                   np.zeros(10),
+                                   np.array([1.7e-3])))
+
+        
+        assert_allclose(x, gold_x, rtol = 1e-3, atol = 1e-16)
+        assert_allclose(err_x, gold_err, rtol = 4e-2, atol = 1e-16)
+
+        # check degs of freedom and residuals
+        assert_allclose(infodict['n_dof'], 3.)
+        assert_allclose(np.sqrt(infodict['reduced_chisq']), 2.889e-3, 
+                        rtol = 1e-3)
+        assert_allclose(infodict['Valpha'], 2.838e-4, rtol = 1e-3)
+
+        x2, err_x2, infodict2 = solve_fixed_alpha(self.A, self.y, 3e-6, 
+                                                  self.R, self.big_D, 
+                                                  self.little_d, False)
+        print x2
+        print err_x2
+        print infodict2
