@@ -23,7 +23,8 @@ import problem_setup
 import dls_kernels
 
 from numpy.testing import assert_allclose
-from computations import ldp_lawson_hanson, reduce_A_qr, solve_fixed_alpha
+from computations import ldp_lawson_hanson, reduce_A_qr, solve_fixed_alpha, \
+    prob_1_alpha
 from problem_setup import setup_grid, setup_quadrature
 from dls_kernels import molecular_wt_distr
 
@@ -64,6 +65,13 @@ class TestClass():
         # Load matrix stats: table of grid points in CONTIN test output
         self.matrix_stats = np.loadtxt('contin_data_set_1_matrix_stats.txt')
     
+        # solve alpha ~ 0 case:
+        (self.x0, self.err_x0, 
+         self.infodict0, self.int_res) = solve_fixed_alpha(self.A, self.y,
+                                                           5.91e-10, self.R,
+                                                           self.big_D,
+                                                           self.little_d,
+                                                           True)
     def tearDown(self):
         pass
     
@@ -78,13 +86,12 @@ class TestClass():
         assert_allclose(matrix_A_minima, self.matrix_stats[:,0], rtol = 5e-5)
         assert_allclose(matrix_A_maxima, self.matrix_stats[:,1], rtol = 5e-5)
 
+
     def test_lowreg_solution(self):
-        x, err_x, infodict = solve_fixed_alpha(self.A, self.y, 5.91e-10, 
-                                               self.R, self.big_D, 
-                                               self.little_d, False)
         # check scalings on x and alpha
-        assert_allclose(infodict['xsc'], self.matrix_stats[:,2], rtol = 5e-4)
-        assert_allclose(infodict['alpha_sc'], 1./9.302e13, rtol = 1e-4)
+        assert_allclose(self.infodict0['xsc'], self.matrix_stats[:,2], 
+                        rtol = 5e-4)
+        assert_allclose(self.infodict0['alpha_sc'], 1./9.302e13, rtol = 1e-4)
 
         # check solution 
         gold_x = np.concatenate((np.zeros(19),
@@ -97,18 +104,49 @@ class TestClass():
                                    np.array([1.7e-3])))
 
         
-        assert_allclose(x, gold_x, rtol = 1e-3, atol = 1e-16)
-        assert_allclose(err_x, gold_err, rtol = 4e-2, atol = 1e-16)
+        assert_allclose(self.x0, gold_x, rtol = 1e-3, atol = 1e-16)
+        assert_allclose(self.err_x0, gold_err, rtol = 4e-2, atol = 1e-16)
 
         # check degs of freedom and residuals
-        assert_allclose(infodict['n_dof'], 3.)
-        assert_allclose(np.sqrt(infodict['reduced_chisq']), 2.889e-3, 
+        assert_allclose(self.infodict0['n_dof'], 3.)
+        assert_allclose(np.sqrt(self.infodict0['reduced_chisq']), 2.889e-3, 
                         rtol = 1e-3)
-        assert_allclose(infodict['Valpha'], 2.838e-4, rtol = 1e-3)
+        assert_allclose(self.infodict0['Valpha'], 2.838e-4, rtol = 1e-3)
 
-        x2, err_x2, infodict2 = solve_fixed_alpha(self.A, self.y, 3e-6, 
-                                                  self.R, self.big_D, 
-                                                  self.little_d, False)
-        print x2
-        print err_x2
-        print infodict2
+
+    def test_reg_soln(self):
+        x, err_x, infodict = solve_fixed_alpha(self.A, self.y, 3e-6, 
+                                               self.R, self.big_D, 
+                                               self.little_d, False)
+
+        gold_x = np.concatenate((np.zeros(15),
+                                 np.array([6.270e-14, 4.878e-12,
+                                           1.318e-11, 2.107e-11,
+                                           2.259e-11, 1.381e-11,
+                                           2.055e-12]),
+                                 np.zeros(9),
+                                 np.array([8.22e-2])))
+        gold_err = np.concatenate((np.zeros(15),
+                                   np.array([1.9e-12, 2.7e-12, 2e-12,
+                                             8.8e-13, 1.7e-12,
+                                             9.5e-13, 6e-13]),
+                                   np.zeros(9),
+                                   np.array([1.9e-3])))
+
+        assert_allclose(x, gold_x, rtol = 2e-3, atol = 1e-14)
+        assert_allclose(err_x, gold_err, rtol = 4e-2, atol = 1e-16)
+        assert_allclose(infodict['Valpha'], 3.38453e-4, rtol = 1e-4)
+        assert_allclose(infodict['chisq'], 3.15960e-4, rtol = 1e-4)
+        assert_allclose(np.sqrt(infodict['reduced_chisq']), 3.056e-3, 
+                        rtol = 1e-3)
+        assert_allclose(infodict['n_dof'], 3.175, rtol = 1e-3)
+
+        # calculate PROB1 TO REJECT
+        prob1 = prob_1_alpha(infodict['chisq'], self.infodict0['Valpha'],
+                             self.infodict0['n_dof'], len(self.y))
+        print 'PROB 1 TO REJECT', prob1
+        assert_allclose(prob1, 0.704, rtol = 1e-3)
+
+
+    def test_resolve(self):
+        pass

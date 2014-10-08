@@ -202,16 +202,19 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
     ZH1_invW = np.dot(Z, np.dot(H1_inv, W))
     DZH1_invW = np.dot(Dsc, ZH1_invW)
 
-    # this part depends on alpha
-    x, binding, success = setup_and_solve_ldp(alpha, gamma, svals, DZH1_invW, 
-                                              ZH1_invW, little_d)
+    # this depends on alpha
+    x, binding, success, reg_contrib = setup_and_solve_ldp(alpha, gamma, svals, 
+                                                           DZH1_invW, 
+                                                           ZH1_invW, little_d)
+    # in subroutine LDPETC, regularizer contribution ||x5||**2 computed before
+    # binding constraints are eliminated
 
     # unscale the solution 
     x_unsc = x * xsc
 
     n_bind = len(binding)
-    residuals, chisq, V, n_dof, reduced_chisq = \
-        solution_statistics(Asc, y, alpha, Rsc * alpha_sc / xsc, svals, x, n_bind)
+    #residuals, chisq, V, n_dof, reduced_chisq = \
+    #    solution_statistics(Asc, y, alpha, Rsc * alpha_sc / xsc, svals, x, n_bind)
     # TODO: something wrong with the calculation of V(alpha), not sure
     # exactly what
 
@@ -239,17 +242,24 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
         new_Gjj = new_svals / (new_svals**2 + alpha**2)
         covar_x = np.dot(K2ZH1_invW,
                          np.dot(np.diag(new_Gjj**2), K2ZH1_invW.transpose()))
+        #TODO: fix this awful hack in the case of no binding constraints
+        residuals, chisq, V, n_dof, reduced_chisq = \
+            solution_statistics(Asc, y, alpha, 
+                                np.dot(Rsc, np.diag(1./xsc)) * alpha_sc,
+                                new_svals, x, n_bind)
+
 
     # CONTIN in-line documentation says *dividing* by reduced_chisq
     # which doesn't make sense to me and gives unreasonably huge error bars. 
-    # scipy.optimize.linregress  does what I'm doing here.
+    # scipy.optimize.linregress  does what I'm doing here, and 
+    # moreover unit tests agree.
     err_x = np.sqrt(np.diag(covar_x) * reduced_chisq) * xsc
     
     infodict = {'xsc' : xsc,
                 'binding_constraints' : binding,
                 'residuals' : residuals,
                 'chisq' : chisq,
-                'Valpha' : V,
+                'Valpha' : chisq + alpha**2 * reg_contrib,
                 'n_dof' : n_dof,
                 'reduced_chisq' : reduced_chisq,
                 'alpha_sc' : alpha_sc,
@@ -281,16 +291,14 @@ def setup_and_solve_ldp(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d):
     # Eqn. A.28, RHS
     A28RHS = little_d - np.dot(A28LHS, gamma_tilde)
 
-    #print A28LHS
-    #print A28RHS
     xi, binding, success = ldp_lawson_hanson(A28LHS, A28RHS)
-    #print binding
-    #print xi
-    #print np.dot(A28LHS, xi)
-    #print
+
+    # "regularizer contribution" is norm of x5 in eq. 1.17
+    regularizer_contrib = np.linalg.norm(np.dot(big_S_tilde_inv, (xi + gamma_tilde)))**2
+
     # Eqn. A.29
     return np.dot(np.dot(ZH1_invW, big_S_tilde_inv), xi + gamma_tilde), \
-        binding, success
+        binding, success, regularizer_contrib
 
 
 def solution_statistics(Asc, y, alpha, Rsc_alphasc, svals, x, n_bind):
@@ -309,9 +317,6 @@ def solution_statistics(Asc, y, alpha, Rsc_alphasc, svals, x, n_bind):
     # scaled chi-squared (sigma-hat, eqn. 3.22)
     reduced_chisq = chisq / (len(y) - n_dof)
 
-    print 'chisq: ', chisq
-    print 'Valpha', V
-    print 'term', alpha**2 + np.linalg.norm(np.dot(Rsc_alphasc, x))**2
     return residuals, chisq, V, n_dof, reduced_chisq
 
 
@@ -469,7 +474,7 @@ def solution_series(A, y, R, big_D, little_d, alpha0 = 1e-22,
                                                 int_results['C'],
                                                 int_results['Asc'],
                                                 y, big_D)
-
+        # TODO: change to chisq
         prob1 = prob_1_alpha(infodict['Valpha'], V_0, ndof_0, ny)
         solns.append((x, err, infodict, alpha_trial, prob1))
         
