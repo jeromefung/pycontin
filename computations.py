@@ -226,6 +226,10 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
         # eqn. A.34
         covar_x = np.dot(ZH1_invW,  
                          np.dot(np.diag(Gjj**2), ZH1_invW.transpose()))
+        residuals, chisq, V, n_dof, reduced_chisq = \
+            solution_statistics(Asc, y, alpha, 
+                                np.dot(Rsc, np.diag(1./xsc)) * alpha_sc,
+                                svals, x, n_bind)
     else:
         
         # extract rows of D and d corresponding to binding constraints
@@ -242,12 +246,12 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
         new_Gjj = new_svals / (new_svals**2 + alpha**2)
         covar_x = np.dot(K2ZH1_invW,
                          np.dot(np.diag(new_Gjj**2), K2ZH1_invW.transpose()))
-        #TODO: fix this awful hack in the case of no binding constraints
         residuals, chisq, V, n_dof, reduced_chisq = \
             solution_statistics(Asc, y, alpha, 
                                 np.dot(Rsc, np.diag(1./xsc)) * alpha_sc,
                                 new_svals, x, n_bind)
-
+        # TODO: solution statistics should actulaly calculate V(alpha)
+            # using regularizer contribution. no need to pass R.
 
     # CONTIN in-line documentation says *dividing* by reduced_chisq
     # which doesn't make sense to me and gives unreasonably huge error bars. 
@@ -263,7 +267,8 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
                 'n_dof' : n_dof,
                 'reduced_chisq' : reduced_chisq,
                 'alpha_sc' : alpha_sc,
-                'singular_values': svals} 
+                'singular_values': svals,
+                'covar_x' : covar_x * reduced_chisq * xsc**2} 
     
     if intermediate_results:
         int_results = {'gamma' : gamma,
@@ -323,16 +328,15 @@ def solution_statistics(Asc, y, alpha, Rsc_alphasc, svals, x, n_bind):
 def re_solve_fixed_alpha(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d,
                          xsc, alpha_sc, Rsc, C, Asc, y, big_D):
 
-    x, binding, success = setup_and_solve_ldp(alpha, gamma, svals, DZH1_invW, 
-                                              ZH1_invW, little_d)
+    x, binding, success, reg_contrib = setup_and_solve_ldp(alpha, gamma, svals,
+                                                           DZH1_invW, 
+                                                           ZH1_invW, little_d)
 
     # unscale the solution 
     x_unsc = x * xsc
 
     n_bind = len(binding)
-    residuals, chisq, V, n_dof, reduced_chisq = \
-        solution_statistics(Asc, y, alpha, Rsc * alpha_sc, svals, x, n_bind)
-
+    
     # put error bars on x
     # if no constraints binding: calc covariance matrix 
     if n_bind == 0: # no binding constraints
@@ -340,6 +344,10 @@ def re_solve_fixed_alpha(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d,
         # eqn. A.34
         covar_x = np.dot(ZH1_invW,  
                          np.dot(np.diag(Gjj**2), ZH1_invW.transpose()))
+        residuals, chisq, V, n_dof, reduced_chisq = \
+            solution_statistics(Asc, y, alpha,
+                                np.dot(Rsc, np.diag(1. / xsc)) * alpha_sc,
+                                svals, x, 0)
     else:
         # extract rows of D and d corresponding to binding constraints
         big_E = big_D[binding] 
@@ -355,6 +363,10 @@ def re_solve_fixed_alpha(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d,
         new_Gjj = new_svals / (new_svals**2 + alpha**2)
         covar_x = np.dot(K2ZH1_invW,
                          np.dot(np.diag(new_Gjj**2), K2ZH1_invW.transpose()))
+        residuals, chisq, V, n_dof, reduced_chisq = \
+            solution_statistics(Asc, y, alpha,
+                                np.dot(Rsc, np.diag(1. / xsc)) * alpha_sc,
+                                new_svals, x, n_bind)
 
     err_x = np.sqrt(np.diag(covar_x) * reduced_chisq) * xsc
     
@@ -362,11 +374,12 @@ def re_solve_fixed_alpha(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d,
                 'binding_constraints' : binding,
                 'residuals' : residuals,
                 'chisq' : chisq,
-                'Valpha' : V,
+                'Valpha' : chisq + alpha**2 * reg_contrib,
                 'n_dof' : n_dof,
                 'reduced_chisq' : reduced_chisq,
                 'alpha_sc' : alpha_sc,
-                'singular_values': svals} 
+                'singular_values': svals,
+                'covar_x' : covar_x * reduced_chisq * xsc**2} 
     
     return x_unsc, err_x, infodict
     
@@ -435,7 +448,7 @@ def solution_series(A, y, R, big_D, little_d, alpha0 = 1e-22,
 
     # first search for upper bound
     alpha_trial = alpha0
-    while prob1_max < 0.95:
+    while prob1_max < 0.9:
         alpha_trial *= 10
         x, err, infodict = re_solve_fixed_alpha(alpha_trial,
                                                 int_results['gamma'],
@@ -450,9 +463,11 @@ def solution_series(A, y, R, big_D, little_d, alpha0 = 1e-22,
                                                 int_results['Asc'],
                                                 y, big_D)
 
-        prob1 = prob_1_alpha(infodict['Valpha'], V_0, ndof_0, ny)
+        prob1 = prob_1_alpha(infodict['chisq'], V_0, ndof_0, ny)
         solns.append((x, err, infodict, alpha_trial, prob1))
         prob1_max = prob1
+        print 'Current alpha: ', alpha_trial
+        print 'Current PROB1: ', prob1
         
     # now have lower bound alpha0, upper bound alpha_trial
     working_prob = prob1_max
@@ -474,8 +489,7 @@ def solution_series(A, y, R, big_D, little_d, alpha0 = 1e-22,
                                                 int_results['C'],
                                                 int_results['Asc'],
                                                 y, big_D)
-        # TODO: change to chisq
-        prob1 = prob_1_alpha(infodict['Valpha'], V_0, ndof_0, ny)
+        prob1 = prob_1_alpha(infodict['chisq'], V_0, ndof_0, ny)
         solns.append((x, err, infodict, alpha_trial, prob1))
         
         if prob1 >= 0.5:
@@ -493,3 +507,37 @@ def solution_series(A, y, R, big_D, little_d, alpha0 = 1e-22,
     sorted_solns = sorted(solns, key = lambda soln: soln[3])
 
     return optimal_soln, sorted_solns
+
+
+def calculate_moments(grid, quad_weights, soln, covariance_matrix = None,
+                      moment_range = (-1, 4)):
+    '''
+    Calculate moments of solution by quadrature.
+
+    grid: grid points
+    quad_weights: quadrature weights corresponding to grid points
+    soln: 
+    soln_errs: error bars on soln
+    moment_range: range of moments to calculate
+
+    See p. 237 of Provencher 1982 for discussion of physical
+    interpretation of moments.
+    '''
+    
+    def moment_j(j):
+        return (quad_weights * grid ** j * soln).sum()
+
+    def error_j(j):
+        a0 = quad_weights * grid **j
+        return np.sqrt(np.dot(a0, np.dot(covariance_matrix, a0)))
+
+    moments = np.array([moment_j(power) for power in np.arange(*moment_range)])
+
+    if covariance_matrix is not None:
+        moment_errors = np.array([error_j(power) for power in 
+                                  np.arange(*moment_range)])
+        return moments, moment_errors/moments
+    else:
+        return moments
+
+        
