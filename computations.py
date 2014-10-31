@@ -31,6 +31,8 @@ import scipy.stats
 
 from scipy.optimize import nnls
 
+# TODO: refactor this module which has gotten way too unwieldy
+
 def ldp_lawson_hanson(G, h):
     '''
     Finds vector x in R^n of minimum Euclidean norm satisfying

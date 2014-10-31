@@ -177,9 +177,11 @@ class TestClass():
                                    np.array([4e-12, 2.3e-12, 1.9e-12]),
                                    np.zeros(10), np.array([1.6e-3])))
 
-        assert_allclose(x_wt, gold_xwt, rtol = 2e-3, atol = 1e-16)
-        assert_allclose(err_x_wt, gold_err, rtol = 3e-2, atol = 1e-16)
-        assert_allclose(dict_wt['n_dof'], 3.038, rtol = 1e-3)
+        assert_allclose(x_wt, gold_xwt, rtol = 2e-3, atol = 1e-15)
+        #print err_x_wt
+        #print gold_err
+        assert_allclose(err_x_wt, gold_err, rtol = 3e-2, atol = 1e-14)
+        assert_allclose(dict_wt['n_dof'], 3.038, rtol = 1e-3, atol = 1e-15)
         assert_allclose(np.sqrt(dict_wt['reduced_chisq']), 9.317e-4, 
                         rtol = 1e-3)
 
@@ -214,7 +216,7 @@ class TestClass():
                                  1.1257e5, 2.0797e10])
         gold_percent_errs = np.array([2.9, 1.6, 0.28, 2.0, 4.3])
         
-        assert_allclose(moments, gold_moments, rtol = 3e-3)
+        assert_allclose(moments, gold_moments, rtol = 1e-2)
         assert_allclose(mom_errs, 1e-2 * gold_percent_errs, rtol = 2e-2)
 
 

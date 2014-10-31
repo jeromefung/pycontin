@@ -12,28 +12,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-'''
-pycontin_fixed_q
 
+import numpy as np
 
-.. moduleauthor:: Jerome Fung <jfung@brandeis.edu>
-'''
+from dls_core import Optics, CorrFn, Measurement
 
-from pycontin_core import *
+class TestClass():
+    def setUp(self):
+        # data and metadata using DLS core classes
+        optics = Optics(wavelen = 488., index = 1.33)
+        
+                # need to load/define gold here
 
-def solve_series(measurement, pycontin_inputs, alpha_0 = 1e-10):
-    '''
-    measurement: instance of dls.core.Measurement
-    pycontin_inputs: instance of pycontin_core.PyContinInputs
+    def test_series(self):
+        series = pycontin_fixed_q.solve_multiq()
+
     
-    Returns:
-    solution: instance of pycontin_core.SolutionSeries
-    '''
-    # do some setup here. return an InversionInput object
-    inversion_input = setup_inversion(measurement, pycontin_inputs)
-    pass
-
-
-def solve_alpha(measurement, pycontin_inputs, alpha, reference_soln = None):
-    # does solve_alpha need a reference solution??
-    pass
