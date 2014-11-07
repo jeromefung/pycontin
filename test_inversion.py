@@ -8,6 +8,7 @@ import problem_setup
 import computations
 import scipy.stats
 
+from pycontin_core import setup_grid, setup_quadrature
 from nose.tools import with_setup
 
 def setup_func():
@@ -41,8 +42,8 @@ def nonneg_sqrt(arr):
 @with_setup(setup_func)
 def test_deltafunction():
     n_grid = 51
-    grid_r, dh, dhdx = problem_setup.setup_grid(1e-8, 1e-6, n_grid) # log
-    quadrature_weights = problem_setup.setup_quadrature(grid_r, dh, dhdx)
+    grid_r, dh, dhdx = setup_grid(1e-8, 1e-6, n_grid) # log
+    quadrature_weights = setup_quadrature(grid_r, dh, dhdx)
 
     # set up F_k matrix
     matr_Fk = np.zeros((len(tbase), n_grid))
@@ -108,8 +109,8 @@ def test_deltafunction():
 @with_setup(setup_func)        
 def test_noisy_data():
     n_grid = 51
-    grid_r, dh, dhdx = problem_setup.setup_grid(1e-8, 1e-6, n_grid) # log
-    quadrature_weights = problem_setup.setup_quadrature(grid_r, dh, dhdx)
+    grid_r, dh, dhdx = setup_grid(1e-8, 1e-6, n_grid) # log
+    quadrature_weights = setup_quadrature(grid_r, dh, dhdx)
 
     # set up F_k matrix
     matr_Fk = np.zeros((len(tbase), n_grid))

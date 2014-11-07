@@ -5,6 +5,7 @@ import problem_setup
 import computations
 import scipy.stats
 
+from pycontin_core import setup_grid, setup_quadrature
 from dls_kernels import molecular_wt_distr
 
 # physical parameters
@@ -28,8 +29,8 @@ y = problem_setup.nonneg_sqrt(test_data[:,1])
 # solution grid
 n_grid = 31
 gmnmx = [5e2, 5e6]
-grid_mw, dh, dhdx = problem_setup.setup_grid(gmnmx[0], gmnmx[1], n_grid)
-quadrature_weights = problem_setup.setup_quadrature(grid_mw, dh, dhdx)
+grid_mw, dh, dhdx = setup_grid(gmnmx[0], gmnmx[1], n_grid)
+quadrature_weights = setup_quadrature(grid_mw, dh, dhdx)
 
 matrix_A = problem_setup.setup_coefficient_matrix(grid_mw, tbase,
                                                   molecular_wt_distr,

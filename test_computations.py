@@ -21,7 +21,8 @@ import numpy as np
 from numpy.linalg import norm
 from numpy.testing import assert_allclose
 from computations import ldp_lawson_hanson, reduce_A_qr, solve_fixed_alpha
-from problem_setup import setup_grid, setup_quadrature, setup_regularizer
+from problem_setup import setup_regularizer
+from pycontin_core import setup_grid, setup_quadrature
 import scipy.optimize
 
 def test_ldp():

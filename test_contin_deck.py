@@ -25,7 +25,7 @@ import dls_kernels
 from numpy.testing import assert_allclose
 from computations import ldp_lawson_hanson, reduce_A_qr, solve_fixed_alpha, \
     prob_1_alpha, calculate_moments, re_solve_fixed_alpha, solution_series
-from problem_setup import setup_grid, setup_quadrature
+from pycontin_core import setup_grid, setup_quadrature
 from dls_kernels import molecular_wt_distr
 
 from numpy import pi, sin
@@ -183,7 +183,7 @@ class TestClass():
         assert_allclose(err_x_wt, gold_err, rtol = 3e-2, atol = 1e-14)
         assert_allclose(dict_wt['n_dof'], 3.038, rtol = 1e-3, atol = 1e-15)
         assert_allclose(np.sqrt(dict_wt['reduced_chisq']), 9.317e-4, 
-                        rtol = 1e-3)
+                        rtol = 1e-3) 
 
 
     def test_re_solve(self):
