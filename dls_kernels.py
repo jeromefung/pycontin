@@ -26,7 +26,7 @@ Provencher Comp. Phys. Comm, 1982
 import numpy as np
 from numpy import pi, exp
 
-def molecular_wt_distr(mw, tau, q, prop_const = None):
+def molecular_wt_distr(mw, tau, q = None, prop_const = None):
     '''
     mw : molecular weight
     tau : lag time
@@ -40,7 +40,7 @@ def molecular_wt_distr(mw, tau, q, prop_const = None):
     return mw * exp(-prop_const * q**2 * tau / np.sqrt(mw))
 
 
-def radius_distr(r, tau, q, kT = None, eta = None):
+def radius_distr(r, tau, q = None, kT = None, eta = None):
     '''
     r : radius
     tau : lag time

@@ -25,7 +25,32 @@ Provencher Comp. Phys. Comm, 1982
 
 import numpy as np
 import numpy.linalg as linalg
+import copy
 from numpy import log, exp
+
+from dls_core import Measurement, CorrFn
+from pycontin_core import RegularizedSolution
+
+def add_weights(unwt_pc_inputs, weight_input = None):
+    '''
+    Take an unweighted PyContinInputs object and add weights
+
+    if weight_input is a Measurement or a CorrFn
+    '''
+    if isinstance(weight_input, Measurement):
+        weights = setup_weights(weight_input.corrfn.data)
+    elif isinstance(weight_input, CorrFn):
+        weights = setup_weights(weight_input.data)
+    elif isinstance(weight_input, RegularizedSolution):
+        weights = setup_weights(weight_input.y_soln)
+    elif isinstance(weight_input, np.ndarray) \
+            or isinstance(weight_input, list):
+        weights = setup_weights(weight_input)
+
+    wt_pc_inputs = copy.deepcopy(unwt_pc_inputs)
+    wt_pc_inputs.weights = weights
+    return wt_pc_inputs
+
 
 def setup_coefficient_matrix(grid, tbase, kernel_func, kernel_kwargs, 
                              quadrature_weights, dust_term = True):
@@ -39,6 +64,7 @@ def setup_coefficient_matrix(grid, tbase, kernel_func, kernel_kwargs,
     Fk = np.zeros((n_ts, n_grid))
     for i in np.arange(n_ts):
         Fk[i] = kernel_func(grid, tbase[i], **kernel_kwargs)
+        #TODO: fix this since q is now required
 
     if dust_term:
         A = np.zeros((n_ts, n_grid + 1))
@@ -136,50 +162,6 @@ def dumb_regularizer(grid, n_x, skip_rows = 2):
         regularizer[-skip_rows:] = np.zeros((skip_rows, n_x))
         return regularizer #, R_col_norms
 
-
-def setup_grid(grid_min, grid_max, n_grid, type = 'log'):
-    '''
-    Set up grid of points over which solution is computed.
-    '''
-    if type == 'log':
-        grid = np.logspace(log(grid_min), log(grid_max), n_grid, 
-                           base = exp(1))
-        dh = (np.log(grid_max) - np.log(grid_min)) / (n_grid - 1)
-        dhdx = 1. / grid
-    elif type == 'linear':
-        grid = np.linspace(grid_min, grid_max, n_grid)
-        dh = grid[1] - grid[0]
-        dhdx = np.ones(n_grid)
-    else:
-        raise NotImplementedError
-
-    return grid, dh, dhdx
-
-
-def setup_quadrature(grid_x, dh, dhdx, type = 'simpson'):
-    n_pts = len(grid_x)
-    if type == 'simpson':
-        if n_pts % 2 == 0: # even number of points
-            # n-1 pts like odd case
-            weights = np.ones(n_pts - 1) * 2/3. + \
-                np.arange(n_pts - 1) % 2 * 2./3.
-            weights[0] = 1./3.
-            weights[-1] = 5./6.
-            # do last point by trapezoidal
-            weights = np.append(weights, 0.5)
-        else: # odd, regular "extended Simpson's rule"
-            # [1/3, 4/3, 2/3, 4/3, 2/3, ..., 4/3, 1/3]
-            weights = np.ones(n_pts) * 2./3. + np.arange(n_pts) % 2 * 2./3.
-            weights[0] = 1./3.
-            weights[-1] = 1./3.
-    elif type == 'trapezoidal':
-        weights = np.ones(n_pts)
-        weights[0] = 0.5
-        weights[-1] = 0.5
-    else:
-        raise NotImplementedError
-    
-    return dh * weights / dhdx # approximate dx ~ dh / (dh/dx)
 
 
 def setup_weights(y):

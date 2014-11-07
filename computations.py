@@ -29,123 +29,102 @@ import numpy.linalg
 import scipy.linalg
 import scipy.stats
 
-from scipy.optimize import nnls
 
-# TODO: refactor this module which has gotten way too unwieldy
+from optimization_linalg import ldp_lawson_hanson, reduce_A_qr, \
+    sv_decompose_regularizer, sv_decompose_coeffs
+from pycontin_core import RegularizedSolution, IntermediateResults
 
-def ldp_lawson_hanson(G, h):
+def _solve_fixed_alpha(inv_input, alpha, intermed_res = None):
     '''
-    Finds vector x in R^n of minimum Euclidean norm satisfying
-    G x >= h, where G is a m x n real matrix and h is an element of
-    R^m.
-    
-    Implements Lawson & Hanson Algorithm LDP (23.27), p. 165.
-
-    Parameters
-    ----------
-    G:
-        Matrix (m x n) on LHS of inequality constraints
-    h:
-        Vector (m) on RHS of inequality constraints
-
-    Returns
-    -------
-    x:
-        Vector (n) of optimal solution, if found
-    binding_constraints:
-        ndarray of indices of elements of x where the inequality 
-        constraint is binding
-    success:
-        Boolean (True) if solution found
+    Inputs:
+    inv_input: pycontin_core.InversionInput object
+    alpha: magnitude of regularization term
+    intermed_res: if provided, use; if not, compute
     '''
-    # dimensions
-    m, n = G.shape
-
-    # construct augmented matrix E
-    E = np.vstack((G.transpose(), h))
-    # construct vector f
-    f = np.concatenate((np.zeros(n), np.ones(1)))
-    # solve non-negative least squares problem min || E u - f ||
-    u, u_residuals = nnls(E, f)
-
-    # compute r
-    r = np.dot(E, u) - f
-
-    if u_residuals == 0:
-        # constraints are incompatible
-        success = False
-        return success
+    if intermed_res is None: # do initial computations
+        # rescale x, A, R, and D
+        xsc, alpha_sc, Asc, Rsc = set_scale(inv_input.coeff_matrix,
+                                            inv_input.regularizer)
+        Dsc = np.dot(inv_input.constraint_matrix, np.diag(xsc))
+        # reduce dimensionality of A (Eqn. A.1)
+        C, eta = reduce_A_qr(Asc, inv_input.knowns)
+        # do svd of regularizer (Eqn. A.7)
+        H1_inv, Z = sv_decompose_regularizer(Rsc)
+        # svd coefficient matrix (Eqn. A.15)
+        CZH1_inv = np.dot(C, np.dot(Z, H1_inv))
+        Q, svals, W = sv_decompose_coeffs(CZH1_inv)
+        # Eqn. A.19
+        gamma = np.dot(Q.transpose(), eta)
+        ZH1_invW = np.dot(Z, np.dot(H1_inv, W))
+        DZH1_invW = np.dot(Dsc, ZH1_invW)
     else:
-        success = True
-        # see discussion of set S on p. 166 and eqn. 23.30 (Kuhn-Tucker)
-        binding_constraints = np.where(u[:-1] > 0)[0]
-        # compute LDP solution vector
-        x = -r[:-1] / r[-1] 
-        return x, binding_constraints, success
+        gamma = intermed_res.gamma
+        DZH1_invW = intermed_res.DZH1_invW
+        ZH1_invW = intermed_res.ZH1_invW
+        C = intermed_res.C
+        Rsc = intermed_res.Rsc
+        Asc = intermed_res.Asc
+        svals = intermed_res.svals
+        xsc = intermed_res.xsc
+        alpha_sc = intermed_res.alpha_sc
 
+    # in subroutine LDPETC, regularizer contribution ||x5||**2 computed before
+    # binding constraints are eliminated
+    x, binding, success, reg_contrib = setup_and_solve_ldp(alpha, gamma, svals, 
+                                                           DZH1_invW, 
+                                                           ZH1_invW, 
+                                                           inv_input.constraint_rhs)
 
-def reduce_A_qr(A, y):
-    '''
-    Perform a QR decomposition via Householder transformations
-    to reduce coefficient matrix M_e A (N_y x N_x) and data vector 
-    Me y to N_x x N_x matrix C and N_x dimensional eta.
-   
-    See Eqn. A.1 of Provencher 1981.
-    '''
-    orthog, C = numpy.linalg.qr(A)
-    eta = np.dot(orthog.transpose(), y)
-    return C, eta
+    # unscale the solution 
+    x_unsc = x * xsc
 
+    n_bind = len(binding)
 
-def sv_decompose_regularizer(R):
-    '''
-    Compute matrices U, H1, and Z in eqn. A.7
+    if n_bind == 0: # no binding constraints
+        Gjj = svals / (svals**2 + alpha**2)
+        # eqn. A.34
+        covar_x = np.dot(ZH1_invW,  
+                         np.dot(np.diag(Gjj**2), ZH1_invW.transpose()))
+        residuals, chisq, Valpha, n_dof, reduced_chisq = \
+            _solution_statistics(Asc, inv_input.knowns, reg_contrib, alpha,
+                                 svals, x, n_bind)
+    else:
+        # extract rows of D and d corresponding to binding constraints
+        big_E = inv_input.constraint_matrix[binding] 
+        little_e = inv_input.constraint_rhs[binding]
+        K2 = calc_K2(big_E)
+        # re-solve problem with K2
+        newH1_inv, newZ = sv_decompose_regularizer(np.dot(Rsc, K2))
+        newZH1_inv = np.dot(newZ, newH1_inv)
+        K2ZH1_inv = np.dot(K2, newZH1_inv)
+        CK2ZH1_inv = np.dot(C, K2ZH1_inv)
+        newQ, new_svals, newW = sv_decompose_coeffs(CK2ZH1_inv)
+        K2ZH1_invW = np.dot(K2ZH1_inv, newW)
+        new_Gjj = new_svals / (new_svals**2 + alpha**2)
+        covar_x = np.dot(K2ZH1_invW,
+                         np.dot(np.diag(new_Gjj**2), K2ZH1_invW.transpose()))
+        residuals, chisq, Valpha, n_dof, reduced_chisq = \
+            _solution_statistics(Asc, inv_input.knowns, reg_contrib, alpha,
+                                 new_svals, x, n_bind)
+        
+    # CONTIN in-line documentation says *dividing* by reduced_chisq
+    # which doesn't make sense to me and gives unreasonably huge error bars. 
+    # scipy.optimize.linregress does what I'm doing here, and 
+    # moreover unit tests agree.
+    err_x = np.sqrt(np.diag(covar_x) * reduced_chisq) * xsc
 
-    Parameters
-    ----------
-    R:
-        Regularizer matrix, ndarray (n_reg, n_x). If there have been 
-        equality constraints, assume they have been eliminated such that
-        the input matrix is RK2 (n_reg x n_xe).
+    y_soln = inv_input.knowns - residuals
+    solution = RegularizedSolution(x_unsc, err_x, y_soln, reg_contrib,
+                                   alpha, binding, residuals,
+                                   chisq, Valpha, n_dof, reduced_chisq,
+                                   covar_x)
     
-    Returns
-    -------
-    H1_inv:
-        ndarray (n_x, n_x), diagonal
-    Z:
-        ndarray (n_x, n_x)
-    '''
-    n_reg, n_x = R.shape
-
-    # n_reg must be >= n_x
-    # add rows of zeros to make n_reg = n_x if needed
-    if n_reg < n_x:
-        R = np.vstack((R, np.zeros((n_x - n_reg, n_x))))
-        n_reg = n_x
-
-    # see svd docstring. H1 is 1d array of singular values
-    U, H1, Ztr = np.linalg.svd(R)
-
-    # check if singular values are too close to epsilon
-    # increase to fraction of largest SV
-    machine_epsilon = np.finfo(np.float64).eps
-    abs_singular_vals = np.abs(H1)
-    smallest_sv = np.sqrt(machine_epsilon) * abs_singular_vals.max()
-    sign_arr = np.sign(H1) # sign(0) = 0
-    sign_arr[sign_arr==0] = 1.
-    H1 = H1 + (abs_singular_vals < 
-               smallest_sv) * (smallest_sv - abs_singular_vals) * sign_arr
-
-    #import pdb; pdb.set_trace()
-    return np.diag(1./H1), Ztr.transpose()
-
-
-def sv_decompose_coeffs(CK2ZH1inv):
-    '''
-    eqn a.15
-    '''
-    Q, S, Wtr = np.linalg.svd(CK2ZH1inv)
-    return Q, S, Wtr.transpose()
+    if intermed_res is None:
+        intermed_res = IntermediateResults(gamma, DZH1_invW, ZH1_invW,
+                                           C, Rsc, Asc, svals, xsc, alpha_sc)
+        return solution, intermed_res
+    else:
+        return solution
 
 
 def solve_fixed_alpha(A, y, alpha, R, big_D, little_d, 
@@ -229,9 +208,8 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
         covar_x = np.dot(ZH1_invW,  
                          np.dot(np.diag(Gjj**2), ZH1_invW.transpose()))
         residuals, chisq, V, n_dof, reduced_chisq = \
-            solution_statistics(Asc, y, alpha, 
-                                np.dot(Rsc, np.diag(1./xsc)) * alpha_sc,
-                                svals, x, n_bind)
+            _solution_statistics(Asc, y, reg_contrib, alpha,
+                                 svals, x, n_bind)
     else:
         
         # extract rows of D and d corresponding to binding constraints
@@ -249,12 +227,9 @@ def solve_fixed_alpha(A, y, alpha, R, big_D, little_d,
         covar_x = np.dot(K2ZH1_invW,
                          np.dot(np.diag(new_Gjj**2), K2ZH1_invW.transpose()))
         residuals, chisq, V, n_dof, reduced_chisq = \
-            solution_statistics(Asc, y, alpha, 
-                                np.dot(Rsc, np.diag(1./xsc)) * alpha_sc,
-                                new_svals, x, n_bind)
-        # TODO: solution statistics should actulaly calculate V(alpha)
-            # using regularizer contribution. no need to pass R.
-
+            _solution_statistics(Asc, y, reg_contrib, alpha, 
+                                 new_svals, x, n_bind)
+        
     # CONTIN in-line documentation says *dividing* by reduced_chisq
     # which doesn't make sense to me and gives unreasonably huge error bars. 
     # scipy.optimize.linregress  does what I'm doing here, and 
@@ -288,34 +263,28 @@ def setup_and_solve_ldp(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d):
     # this part depends on alpha
     # Eqn. A.21 
     gamma_tilde = gamma * svals / np.sqrt(svals**2 + alpha**2)
-
     # Eqn. A.22
-    big_S_tilde_inv = np.diag(1./np.sqrt(svals**2 + alpha**2))
-    
+    big_S_tilde_inv = np.diag(1./np.sqrt(svals**2 + alpha**2))    
     # LHS of ineqeuality A.28
     A28LHS = np.dot(DZH1_invW, big_S_tilde_inv)
-
     # Eqn. A.28, RHS
     A28RHS = little_d - np.dot(A28LHS, gamma_tilde)
-
     xi, binding, success = ldp_lawson_hanson(A28LHS, A28RHS)
-
-    # "regularizer contribution" is norm of x5 in eq. 1.17
-    regularizer_contrib = np.linalg.norm(np.dot(big_S_tilde_inv, (xi + gamma_tilde)))**2
-
+    # "regularizer contribution" is norm of x5 in eq. A.17
+    regularizer_contrib = np.linalg.norm(np.dot(big_S_tilde_inv, 
+                                                (xi + gamma_tilde)))**2
     # Eqn. A.29
     return np.dot(np.dot(ZH1_invW, big_S_tilde_inv), xi + gamma_tilde), \
         binding, success, regularizer_contrib
 
 
-def solution_statistics(Asc, y, alpha, Rsc_alphasc, svals, x, n_bind):
+def _solution_statistics(Asc, y, regularizer_contrib, alpha, svals, x, n_bind):
     # calculate unscaled residuals
     residuals = y - np.dot(Asc, x)
     chisq = np.linalg.norm(residuals)**2
 
     # calculated V (regularized chisq)
-    #import pdb; pdb.set_trace()
-    V = chisq + alpha**2 * np.linalg.norm(np.dot(Rsc_alphasc, x))**2
+    V = chisq + alpha**2 * regularizer_contrib
     # calculate N_dof, eqns. 3.15 and 3.16
     # sum n_x - n_eq singular values, where n_eq includes binding 
     # inequality constraints that are effectively equality constraints
@@ -347,9 +316,8 @@ def re_solve_fixed_alpha(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d,
         covar_x = np.dot(ZH1_invW,  
                          np.dot(np.diag(Gjj**2), ZH1_invW.transpose()))
         residuals, chisq, V, n_dof, reduced_chisq = \
-            solution_statistics(Asc, y, alpha,
-                                np.dot(Rsc, np.diag(1. / xsc)) * alpha_sc,
-                                svals, x, 0)
+            _solution_statistics(Asc, y, reg_contrib, alpha,
+                                 svals, x, 0)
     else:
         # extract rows of D and d corresponding to binding constraints
         big_E = big_D[binding] 
@@ -366,9 +334,8 @@ def re_solve_fixed_alpha(alpha, gamma, svals, DZH1_invW, ZH1_invW, little_d,
         covar_x = np.dot(K2ZH1_invW,
                          np.dot(np.diag(new_Gjj**2), K2ZH1_invW.transpose()))
         residuals, chisq, V, n_dof, reduced_chisq = \
-            solution_statistics(Asc, y, alpha,
-                                np.dot(Rsc, np.diag(1. / xsc)) * alpha_sc,
-                                new_svals, x, n_bind)
+            _solution_statistics(Asc, y, reg_contrib, alpha,
+                                 new_svals, x, n_bind)
 
     err_x = np.sqrt(np.diag(covar_x) * reduced_chisq) * xsc
     

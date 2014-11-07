@@ -23,8 +23,8 @@ class TestClass():
         optics = Optics(wavelen = 488., index = 1.33)
         
                 # need to load/define gold here
-
+'''
     def test_series(self):
         series = pycontin_fixed_q.solve_multiq()
-
+'''
     
