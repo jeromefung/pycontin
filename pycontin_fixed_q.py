@@ -21,7 +21,7 @@ pycontin_fixed_q
 
 import numpy as np
 
-from pycontin_core import InversionInput
+from pycontin_core import InversionInput, PhysicalSolution
 from problem_setup import setup_coefficient_matrix, nonneg_sqrt, \
     setup_nonneg, dumb_regularizer, setup_regularizer
 from computations import _solve_fixed_alpha
@@ -43,11 +43,22 @@ def solve_alpha(measurement, pycontin_inputs, alpha, intermed_res = None):
     inversion_input = _setup_inversion(measurement, pycontin_inputs)
 
     if intermed_res is None:
-        return _solve_fixed_alpha(inversion_input, alpha)
+        reg_soln, int_res = _solve_fixed_alpha(inversion_input, alpha)
+        if pycontin_inputs.dust_term:
+            soln = PhysicalSolution(reg_soln, ['dust'])
+        else:
+            soln = PhysicalSolution(reg_soln)
+        return soln, int_res
     else:
-        return _solve_fixed_alpha(inversion_input, alpha, intermed_res)
+        reg_soln =  _solve_fixed_alpha(inversion_input, alpha, 
+                                                intermed_res)
+        if pycontin_inputs.dust_term:
+            soln = PhysicalSolution(reg_soln, ['dust'])
+        else:
+            soln = PhysicalSolution(reg_soln)
+        return soln
 
-        
+
 def _setup_inversion(measmnt, pc_inputs):
     '''
     Inputs:

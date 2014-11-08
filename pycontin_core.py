@@ -120,6 +120,11 @@ class RegularizedSolution(Serializable):
         self.covariance_matrix = covariance_matrix
 
 
+class PhysicalSolution(RegularizedSolution):
+    def __init__(self, reg_soln, non_grid_terms = None):
+        super(PhysicalSolution, self).__init__(**reg_soln.__dict__)
+        self.non_grid_terms = non_grid_terms
+
 
 class SolutionSeries(Serializable):
     def __init__(self, solutions = None, prob1s = None, optimal_soln = None):
