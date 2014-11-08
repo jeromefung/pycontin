@@ -122,6 +122,7 @@ class RegularizedSolution(Serializable):
 
 class PhysicalSolution(RegularizedSolution):
     def __init__(self, reg_soln, non_grid_terms = None):
+        # some magic here
         super(PhysicalSolution, self).__init__(**reg_soln.__dict__)
         self.non_grid_terms = non_grid_terms
 
