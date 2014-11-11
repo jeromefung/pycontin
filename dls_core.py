@@ -108,6 +108,18 @@ class CorrFn(object):
         return CorrFn(times, data, duration=self.duration,
                       samples=self.samples, count_rate=self.count_rate)
 
+    def trimmed_t(self, tmin = 0., tmax = 1e6):
+        '''
+        Returns trimmed version of correlation, eliminating delay times
+        less than tmin and greater than tmax.
+        '''
+        condition = (self.delay_times > tmin) * (self.delay_times < tmax)
+        data_trimmed = self.data[condition]
+        times_trimmed = self.delay_times[condition]
+        return CorrFn(times_trimmed, data_trimmed, duration = self.duration,
+                      samples = self.samples, count_rate = self.count_rate)
+
+
 PERPENDICULAR_POLARIZATION = (1.0, 0.0)
 PARALLEL_POLARIZATION = (0.0, 1.0)
 
