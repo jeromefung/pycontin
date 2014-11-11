@@ -510,3 +510,38 @@ def calculate_moments(grid, quad_weights, soln, covariance_matrix = None,
         return moments
 
         
+def _binary_search(target_value, alpha0, inv_input, int_res,
+                   soln0, initial_value = 0., upper_target = 1.,
+                   converge_radius = 0.05):
+    prob1s = np.array([initial_value]) # remove this later
+    solns = []
+    working_alphas = np.array([initial_value]) # remove later
+
+    working_alpha = initial_value
+
+    def search_block(working_alpha):
+        soln = _solve_fixed_alpha(inv_input, working_alpha, int_res)
+        prob1alpha = prob_1_alpha(soln.chisq, soln0.Valpha, soln0.n_dof,
+                                  len(soln0.y_soln))
+        solns.append(soln)
+        prob1s = np.append(prob1s, prob1alpha)
+        working_alphas = np.append(working_alphas, working_alpha)
+    
+
+    while prob1s.max() <= target_value:
+        working_alpha *= 10
+        search_block(working_alpha)
+
+    upper_bound = working_alphas[-1] # first value with prob1 > target
+    lower_bound = working_alphas[-2] # previous value had prob1 < target
+    while abs(prob1s[-1] - target_value) > converge_radius:
+        working_alpha = (lower_bound + upper_bound) / 2.
+        search_block(working_alpha)
+        if prob1s[-1] > target_value:
+            upper_bound = working_alpha
+        else:
+            lower_bound = working_alpha
+
+    return solns, working_alphas[1:], prob1s[1:]
+
+    

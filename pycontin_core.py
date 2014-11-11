@@ -120,18 +120,38 @@ class RegularizedSolution(Serializable):
         self.covariance_matrix = covariance_matrix
 
 
+
 class PhysicalSolution(RegularizedSolution):
     def __init__(self, reg_soln, non_grid_terms = None):
         # some magic here
         super(PhysicalSolution, self).__init__(**reg_soln.__dict__)
         self.non_grid_terms = non_grid_terms
 
+    @property
+    def n_non_grid(self):
+        if self.non_grid_terms is not None:
+            return len(self.non_grid_terms)
+        else:
+            return 0
+
+    @property
+    def grid_soln(self):
+        return self.x[:-self.n_non_grid]
+
+    @property
+    def grid_err(self):
+        return self.error[:-self.n_non_grid]
+    
+
 
 class SolutionSeries(Serializable):
-    def __init__(self, solutions = None, prob1s = None, optimal_soln = None):
+    def __init__(self, solutions = None, prob1s = None):
+        '''
+        last solution considered optimal
+        '''
         self.solutions = solutions
         self.prob1s = prob1s
-        self.optimal_soln = optimal_soln
+
 
 # Arguably the following functions belong in problem_setup
 # rather than here, but avoid a circular import situation.

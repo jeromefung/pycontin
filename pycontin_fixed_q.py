@@ -38,6 +38,10 @@ def solve_series(measurement, pycontin_inputs, alpha_0 = 1e-10):
     # do some setup here. return an InversionInput object
     inversion_input = _setup_inversion(measurement, pycontin_inputs)
     
+    # solve alpha_0 case
+    soln_0, int_res = _solve_fixed_alpha(inversion_input, alpha_0)
+
+    # 
 
 def solve_alpha(measurement, pycontin_inputs, alpha, intermed_res = None):
     inversion_input = _setup_inversion(measurement, pycontin_inputs)
