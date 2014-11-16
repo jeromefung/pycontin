@@ -148,9 +148,8 @@ class TestClass():
         '''
 
     def test_series(self):
-        #series = pycontin_fixed_q.solve_series(self.measurement, 
-        #                                       self.pc_inputs)
-        pass
+        series, intermed_res = solve_series(self.measurement, self.pc_inputs)
+        assert_allclose(series.best_prob1, 0.5, rtol = 1e-1)
 
 
     def test_serialization(self):

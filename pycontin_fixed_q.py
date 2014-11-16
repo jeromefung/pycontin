@@ -21,13 +21,15 @@ pycontin_fixed_q
 
 import numpy as np
 
-from pycontin_core import InversionInput, PhysicalSolution
+from pycontin_core import InversionInput, PhysicalSolution, SolutionSeries
 from problem_setup import setup_coefficient_matrix, nonneg_sqrt, \
     setup_nonneg, dumb_regularizer, setup_regularizer
-from computations import _solve_fixed_alpha
+from computations import _solve_fixed_alpha, _binary_search
     
 
-def solve_series(measurement, pycontin_inputs, alpha_0 = 1e-10):
+def solve_series(measurement, pycontin_inputs, intermed_result = None,
+                 alpha_0 = 1e-10, 
+                 converge_radius = 0.05, target = 0.5):
     '''
     measurement: instance of dls.core.Measurement
     pycontin_inputs: instance of pycontin_core.PyContinInputs
@@ -39,9 +41,36 @@ def solve_series(measurement, pycontin_inputs, alpha_0 = 1e-10):
     inversion_input = _setup_inversion(measurement, pycontin_inputs)
     
     # solve alpha_0 case
-    soln_0, int_res = _solve_fixed_alpha(inversion_input, alpha_0)
+    if intermed_result is None:
+        soln_0, int_result = _solve_fixed_alpha(inversion_input, alpha_0)
+    else:
+        soln_0 = _solve_fixed_alpha(inversion_input, alpha_0, intermed_res)
+        int_result = intermed_result
 
-    # 
+    # do binary search
+    solns, alphas, prob1s = _binary_search(target, alpha_0, inversion_input,
+                                           int_result, soln_0, 
+                                           converge_radius)
+
+    if pycontin_inputs.dust_term:
+        phys_solns = [PhysicalSolution(soln, ['dust']) for soln in solns]
+    else:
+        phys_solns = [PhysicalSolution(soln) for soln in solns]
+
+
+    # now sort solutions
+    sort_order = np.argsort(alphas)
+
+    if intermed_result is None:
+        return SolutionSeries(sorted(phys_solns, key = lambda sol: sol.alpha),
+                              prob1s[sort_order], alphas[sort_order], 
+                              phys_solns[-1], prob1s[-1]), int_result
+    else:
+        return SolutionSeries(sorted(phys_solns, key = lambda sol: sol.alpha),
+                              prob1s[sort_order], alphas[sort_order], 
+                              phys_solns[-1], prob1s[-1])
+
+    
 
 def solve_alpha(measurement, pycontin_inputs, alpha, intermed_res = None):
     inversion_input = _setup_inversion(measurement, pycontin_inputs)

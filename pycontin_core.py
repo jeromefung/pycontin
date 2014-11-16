@@ -145,12 +145,16 @@ class PhysicalSolution(RegularizedSolution):
 
 
 class SolutionSeries(Serializable):
-    def __init__(self, solutions = None, prob1s = None):
+    def __init__(self, solutions = None, prob1s = None, alphas = None,
+                 best_soln = None, best_prob1 = None):
         '''
         last solution considered optimal
         '''
         self.solutions = solutions
         self.prob1s = prob1s
+        self.alphas = alphas
+        self.best_soln = best_soln
+        self.best_prob1 = best_prob1
 
 
 # Arguably the following functions belong in problem_setup
