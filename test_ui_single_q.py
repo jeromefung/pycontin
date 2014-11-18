@@ -102,6 +102,7 @@ class TestClass():
         assert_allclose(self.soln_r.error, gold_err, rtol = 4e-2, atol = 1e-16)
         assert_allclose(self.soln_r.Valpha, 3.38453e-4, rtol = 1e-4)
         assert_allclose(self.soln_r.chisq, 3.15960e-4, rtol = 1e-4)
+        assert_allclose((self.soln_r.residuals**2).sum(), self.soln_r.chisq)
         assert_allclose(np.sqrt(self.soln_r.reduced_chisq), 3.056e-3, 
                         rtol = 1e-3)
         assert_allclose(self.soln_r.n_dof, 3.175, rtol = 1e-3)
@@ -151,6 +152,27 @@ class TestClass():
         series, intermed_res = solve_series(self.measurement, self.pc_inputs)
         assert_allclose(series.best_prob1, 0.5, rtol = 1e-1)
 
+
+    def test_simulated_data(self):
+        opt_2 = Optics(0.6328, 1.33)
+        q = opt_2.qsca(60)
+        a = 0.1 # microns
+        kT = 295 * 1.38e-23 * 1e18
+        tbase = np.logspace(-3, 2, 201) # ms
+        D = kT / (6. * np.pi * 1. * a)
+        data = np.exp(-2. * D * q**2 * tbase)
+        meast = Measurement(CorrFn(tbase, data), 60., opt_2)
+        pc_inputs = PyContinInputs(n_grid = 31, 
+                                   grid_bounds = np.array([1e-2, 1]),
+                                   kernel_type = 'rad',
+                                   kernel_kwargs = {'kT' : kT,
+                                                    'eta' : 1.})
+        soln, intres = solve_alpha(meast, pc_inputs, 1e-11)
+        # check that the residuals are negligible
+        assert_allclose(soln.residuals, np.zeros(201), atol = 1e-8)
+        # check that there is a spike near correct radius
+        assert_allclose(pc_inputs.grid[soln.x.argmax()], a)
+        print soln.x
 
     def test_serialization(self):
         pass

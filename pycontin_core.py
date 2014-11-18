@@ -25,7 +25,7 @@ import numpy as np
 from numpy import log, exp
 from yaml_serialize import Serializable
 #from problem_setup import setup_grid, setup_quadrature
-from dls_kernels import molecular_wt_distr, radius_distr
+from dls_kernels import molecular_wt_distr, radius_distr, diffusion_coeff_distr
 
 class InversionInput(Serializable):
     def __init__(self, coeff_matrix = None, knowns = None, regularizer = None, 
@@ -52,6 +52,8 @@ class PyContinInputs(Serializable):
             self.kernel_func = molecular_wt_distr
         elif self.kernel_type == 'rad':
             self.kernel_func = radius_distr
+        elif self.kernel_type == 'diff_coeff':
+            self.kernel_func = diffusion_coeff_distr
         else:
             raise NotImplementedError
 

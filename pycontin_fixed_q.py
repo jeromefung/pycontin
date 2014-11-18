@@ -44,7 +44,7 @@ def solve_series(measurement, pycontin_inputs, intermed_result = None,
     if intermed_result is None:
         soln_0, int_result = _solve_fixed_alpha(inversion_input, alpha_0)
     else:
-        soln_0 = _solve_fixed_alpha(inversion_input, alpha_0, intermed_res)
+        soln_0 = _solve_fixed_alpha(inversion_input, alpha_0, intermed_result)
         int_result = intermed_result
 
     # do binary search
@@ -98,7 +98,10 @@ def _setup_inversion(measmnt, pc_inputs):
     Measurement object
     PyContinInputs object
     '''
-    kernel_kwargs_with_q = pc_inputs.kernel_kwargs.copy()
+    if pc_inputs.kernel_kwargs is not None:
+        kernel_kwargs_with_q = pc_inputs.kernel_kwargs.copy()
+    else:
+        kernel_kwargs_with_q = {}
     kernel_kwargs_with_q['q'] = measmnt.qsca
     coeff_matrix = setup_coefficient_matrix(pc_inputs.grid,
                                             measmnt.corrfn.delay_times,
@@ -121,10 +124,10 @@ def _setup_inversion(measmnt, pc_inputs):
     else:
         raise NotImplementedError
     
-    if pc_inputs.dust_term is not None:
+    if pc_inputs.dust_term:
         nx = pc_inputs.n_grid + 1
     else:
-        nx = pc_inputs.ngrid
+        nx = pc_inputs.n_grid
 
     if pc_inputs.regularizer_external_pts <= 2:
         skip_rows = 2 - pc_inputs.regularizer_external_pts

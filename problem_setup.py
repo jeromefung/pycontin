@@ -64,8 +64,7 @@ def setup_coefficient_matrix(grid, tbase, kernel_func, kernel_kwargs,
     Fk = np.zeros((n_ts, n_grid))
     for i in np.arange(n_ts):
         Fk[i] = kernel_func(grid, tbase[i], **kernel_kwargs)
-        #TODO: fix this since q is now required
-
+        
     if dust_term:
         A = np.zeros((n_ts, n_grid + 1))
         A[:, :-1] = np.dot(Fk, np.diag(quadrature_weights))
@@ -144,7 +143,10 @@ def dumb_regularizer(grid, n_x, skip_rows = 2):
     regularizer[0, 0] = 1.
     regularizer[1, :2] = np.array([-2., 1.])
     # last 2 rows
-    regularizer[-2, -(2 + n_unreg):-n_unreg] = np.array([1., -2.])
+    if n_unreg > 0:
+        regularizer[-2, -(2 + n_unreg):-n_unreg] = np.array([1., -2.])
+    else:
+        regularizer[-2, -2:] = np.array([1., -2.])
     regularizer[-1, -(1 + n_unreg)] = 1.
 
     # the rest

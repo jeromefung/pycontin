@@ -52,6 +52,10 @@ def radius_distr(r, tau, q = None, kT = None, eta = None):
     return r**3 * exp(-D * q**2 * tau)
 
 
+def diffusion_coeff_distr(D, tau, q = None):
+    return exp(-D * q**2 * tau)
+
+
 def scattering_form_factor(mw, q):
     raise NotImplementedError
 
